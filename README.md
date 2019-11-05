@@ -1,10 +1,10 @@
-Weather and daily city bike usage
-
 ## Dependencies
 
 Besides standard coreutils and Make, the following additional software
 is required:
 
+- [LaTeX](https://latex-project.org)
+- [pandoc](https://pandoc.org)
 - [R](https://www.r-project.org/)
 - [sqlite](https://sqlite.org)
 - [xsv](https://github.com/BurntSushi/xsv)
