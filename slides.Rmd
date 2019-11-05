@@ -1,7 +1,8 @@
 ---
-title: "Title"
+title: Weather and Daily City Bike Usage
 author: Joshua Krusell
-date: 2019-11-04
+institute: "Replication code available at https://github.com/jsks/RAV"
+date: 2019-11-05
 header-includes:
     - \usepackage{amsmath,amssymb}
 output:
@@ -12,6 +13,7 @@ output:
 ---
 
 ```{r include = F, results = "hide"}
+library(bayesplot)
 library(dplyr)
 library(ggplot2)
 library(rstan)
@@ -21,7 +23,6 @@ theme_set(theme_bw() +
           panel.grid.minor = element_blank()))
 
 df <- readRDS("data/dataset.rds")
-#fit <- readRDS("data/fit.rds")
 ```
 
 ## Weather Data
@@ -92,3 +93,128 @@ Weakly informative priors:
     \sigma^k & \sim \mathsf{HalfCauchy}(0, 1) \\
     \phi & \sim \mathsf{HalfCauchy}(0, 1)
 \end{align*}
+
+## Results
+
+```{r echo = F}
+coefficients <- readRDS("posterior/coef.rds")
+mcmc_areas(coefficients[, -1])
+```
+
+## Posterior Predictive Checking
+
+```{r echo = F}
+df <- filter(df, count > 500)
+y_rep <- readRDS("posterior/y_rep.rds")
+
+ppc_dens_overlay(df$count, y_rep[1:50, ])
+```
+
+## Posterior Predictive Error
+
+```{r echo = F}
+v <- sapply(1:ncol(y_rep), function(i) (df$count[i] - y_rep[, i]) ^ 2) %>%
+    rowMeans %>%
+    sqrt %>%
+    quantile(., probs = c(0.1, 0.9))  %>%
+    signif
+```
+
+RMSE: `r sprintf("%.2f - %.2f", v[1], v[2])`
+
+```{r echo = F}
+ll <- lapply(1:ncol(y_rep), function(i) {
+    quantile(df$count[i] - y_rep[, i], probs = c(0.1, 0.5, 0.9))
+}) %>% do.call(rbind, .)
+
+errors.df <- as.data.frame(ll) %>%
+    rename(codelow = `10%`,
+           median = `50%`,
+           codehigh = `90%`) %>%
+    mutate(y = df$count)
+
+ggplot(errors.df, aes(y, median, group = 1)) +
+    geom_errorbar(aes(y, ymin = codelow, ymax = codehigh),
+                  colour = "lightblue", width = 0) +
+    ylab("Observed - Predicted") +
+    xlab("Observed Ridership")
+
+```
+
+## Posterior Predictions
+
+```{r echo = F}
+df <- filter(df, !is.na(count), count > 500)
+
+pred.df <- apply(y_rep, 2, quantile, probs = c(0.1, 0.5, 0.9)) %>%
+    t %>%
+    as.data.frame %>%
+    rename(codelow = `10%`,
+           median = `50%`,
+           codehigh = `90%`) %>%
+    mutate(monthDay = format(df$datestr, "%m-%d"),
+           y = df$count,
+           year = df$year)
+
+ggplot(pred.df, aes(monthDay, y, group = 1)) +
+    geom_line() +
+    geom_ribbon(aes(ymin = codelow, ymax = codehigh),
+                alpha = 0.5, fill = "lightblue") +
+    facet_grid(year ~ .) +
+    scale_x_discrete(breaks = breaks)
+```
+
+
+## Marginal Effect - Temperature
+
+```{r echo = F}
+v <- seq(min(df$temp), max(df$temp), by = 0.1)
+m <- lapply(v, function(x) {
+        exp(coefficients[, "intercept"] + coefficients[, "temp"] * x) %>%
+            quantile(probs = c(0.1, 0.5, 0.9))
+}) %>% do.call(rbind, .)
+
+marginal.df <- as.data.frame(m) %>%
+    rename(codelow = `10%`,
+           median = `50%`,
+           codehigh = `90%`) %>%
+    mutate(temp = v)
+
+ggplot(marginal.df, aes(temp, median, group = 1)) +
+    geom_line() +
+    geom_ribbon(aes(ymin = codelow, ymax = codehigh),
+                alpha = 0.5, fill = "lightblue") +
+    ylab("Ridership") +
+    xlab("Temperature")
+```
+
+## Marginal Effect - Precipitation
+
+```{r echo = F}
+v <- seq(min(df$precipitation), max(df$precipitation), by = 0.1)
+m <- lapply(v, function(x) {
+        exp(coefficients[, "intercept"] + coefficients[, "precipitation"] * x) %>%
+            quantile(probs = c(0.1, 0.5, 0.9))
+}) %>% do.call(rbind, .)
+
+marginal.df <- as.data.frame(m) %>%
+    rename(codelow = `10%`,
+           median = `50%`,
+           codehigh = `90%`) %>%
+    mutate(precipitation = v)
+
+ggplot(marginal.df, aes(precipitation, median, group = 1)) +
+    geom_line() +
+    geom_ribbon(aes(ymin = codelow, ymax = codehigh),
+                alpha = 0.5, fill = "lightblue") +
+    ylab("Ridership") +
+    xlab("Precipitation")
+
+```
+
+## Limitations
+
+- Time endogeneity
+- Weather aggregation
+- Holidays
+- Non-parametric functional terms: gaussian processes!

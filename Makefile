@@ -4,6 +4,7 @@ include env.list
 
 data      := data
 processed := $(data)/processed
+post      := posterior
 
 v1_raw_files     := $(wildcard $(data)/v1/*.csv.gz)
 legacy_raw_files := $(wildcard $(data)/legacy/**/*.csv.zip)
@@ -14,7 +15,10 @@ all: slides.pdf
 .PHONY: clean download
 
 clean:
-	rm -rf $(processed) $(data)/{db,weather.rds,dataset.rds} slides.pdf
+	rm -rf $(processed) \
+		$(post) \
+		$(data)/{db,weather.rds,dataset.rds} \
+		slides.pdf
 
 download:
 	@mkdir $(data)
@@ -48,5 +52,11 @@ $(data)/weather.rds: R/weather.R
 $(data)/dataset.rds: R/merge.R $(data)/db $(data)/weather.rds
 	Rscript R/merge.R
 
-%.pdf: %.Rmd
+# There's way more output files than just fit.rds from this script;
+# however, to keep this simple track only the main posterior rds
+$(post)/fit.rds: R/model.R stan/negbin.stan
+	@mkdir -p $(@D)
+	Rscript R/model.R
+
+%.pdf: %.Rmd $(post)/fit.rds
 	Rscript -e "rmarkdown::render('$<')"

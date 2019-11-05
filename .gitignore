@@ -1,5 +1,8 @@
 *.pdf
 *.aux
 
+/**/*.rds
+
 env.list
 data/
+posterior/
