@@ -1,0 +1,94 @@
+---
+title: "Title"
+author: Joshua Krusell
+date: 2019-11-04
+header-includes:
+    - \usepackage{amsmath,amssymb}
+output:
+    beamer_presentation:
+        latex_engine: xelatex
+        theme: metropolis
+        fonttheme: structurebold
+---
+
+```{r include = F, results = "hide"}
+library(dplyr)
+library(ggplot2)
+library(rstan)
+
+theme_set(theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()))
+
+df <- readRDS("data/dataset.rds")
+#fit <- readRDS("data/fit.rds")
+```
+
+## Weather Data
+
+```{r echo = F}
+par(mfrow = c(3, 1))
+with(df, plot(datestr, temp))
+with(df, plot(datestr, wind))
+with(df, plot(datestr, precipitation))
+```
+
+## Bicycle Usage
+
+```{r echo = F}
+sub.df <- filter(df, !is.na(count), !is.na(year)) %>%
+    mutate(monthDay = format(datestr, "%m-%d"))
+breaks <- paste0(formatC(4:11, width = 2, flag = 0), "-01")
+
+ggplot(sub.df, aes(monthDay, count, group = 1)) +
+    geom_point(na.rm = T) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    facet_grid(year ~ .) +
+    ylab("Ridership") +
+    theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()) +
+    scale_x_discrete(breaks = breaks)
+```
+
+## Bicycle Usage
+
+```{r echo = F}
+par(mfrow = c(2, 1))
+with(sub.df, boxplot(count ~ month))
+with(sub.df, boxplot(count ~ weekday))
+```
+
+## Scatterplot Matrix
+
+```{r echo = F}
+select(sub.df, ridership = count, temp, wind, precipitation) %>%
+    data.matrix %>%
+    pairs
+```
+
+## Model
+
+Let:
+
+- $y \in \mathbb{N}^n$ be the daily ridership count
+- $X \in \mathbb{R}^{n \times m}$ the matrix of predictors
+- $\zeta^k \in \mathbb{R}^{J_k}$ the set of partially pooled random
+  intercepts for $K$ grouping factors
+\begin{align*}
+    y_i & \sim \mathsf{NegBinomial}(\mu_i, \phi) \\
+    \mathsf{log}(\mu_i) & = \alpha + X_i \beta + \sum_{k=1}^K \zeta^k_{j_i} \\
+    \mathop{\mathbb{E}}[Y] & = \mu \mbox{ and }
+        \mathsf{Var}[Y] = \mu + \frac{\mu^2}{\phi}
+\end{align*}
+
+## Priors
+
+Weakly informative priors:
+\begin{align*}
+    \alpha & \sim \mathsf{Normal}(0, 10) \\
+    \beta & \sim \mathsf{Normal}(0, 5) \\
+    \zeta^k & \sim \mathsf{Normal}(0, \sigma^k) \\
+    \sigma^k & \sim \mathsf{HalfCauchy}(0, 1) \\
+    \phi & \sim \mathsf{HalfCauchy}(0, 1)
+\end{align*}

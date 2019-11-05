@@ -10,13 +10,14 @@ legacy_raw_files := $(wildcard $(data)/legacy/**/*.csv.zip)
 processed_files  := $(v1_raw_files:$(data)/%.csv.gz=$(processed)/%.csv) \
 			$(legacy_raw_files:$(data)/%.csv.zip=$(processed)/%.csv)
 
-all: dataset.rds
+all: slides.pdf
 .PHONY: clean download
 
 clean:
-	rm -rf $(processed) $(data)/{db,weather.rds,dataset.rds}
+	rm -rf $(processed) $(data)/{db,weather.rds,dataset.rds} slides.pdf
 
 download:
+	@mkdir $(data)
 	scripts/download.sh
 
 $(processed)/v1/%.csv: $(data)/v1/%.csv.gz
@@ -44,5 +45,8 @@ $(data)/db: $(processed)/full_data.csv.gz scripts/import.sh scripts/create.sql
 $(data)/weather.rds: R/weather.R
 	Rscript R/weather.R
 
-dataset.rds: R/merge.R $(data)/db $(data)/weather.rds
+$(data)/dataset.rds: R/merge.R $(data)/db $(data)/weather.rds
 	Rscript R/merge.R
+
+%.pdf: %.Rmd
+	Rscript -e "rmarkdown::render('$<')"
