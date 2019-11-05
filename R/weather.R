@@ -24,7 +24,7 @@ url <- sprintf("%s?sources=%s&referencetime=%s&elements=%s",
 json <- fromJSON(URLencode(url), flatten = T)
 
 df <- unnest(json$data) %>%
-    filter(!(grepl("precipitation", elementId) & timeOffset == "PT18H"),
+    filter(!(grepl("precipitation", elementId) & timeOffset == "PT6H"),
            !(grepl("air", elementId) & timeOffset == "PT0H")) %>%
     select(referenceTime, elementId, value) %>%
     mutate(date = as.Date(referenceTime),
